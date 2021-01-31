@@ -1,10 +1,10 @@
 #!/usr/bin/env ruby
 
-def bowling(score)
-  # 1投毎に分割する
-  scores = score.chars
+# 文字列をimmutable（破壊的変更不可）にする
+# frozen_string_literal: true
 
-  # 数字に変換
+# １投ずつのスコア文字列を数字配列に変換
+def to_shots(scores)
   shots = []
   shots_number = 0
   scores.each do |s|
@@ -21,50 +21,59 @@ def bowling(score)
     end
     shots_number += 1
   end
+  shots
+end
 
-  # フレーム毎に分割
+# 数字配列をフレーム毎に分割
+def to_frames(shots)
   frames = []
   shots.each_slice(2) do |s|
     frames << s
   end
 
-  # 10要素目があれば、９要素目(10フレーム）と連結して削除
+  # 10要素目があれば９要素目(10フレーム）と連結し削除
   if frames[10]
     frames[9].concat(frames[10])
     frames.delete_at(10)
   end
+  frames
+end
 
-  # ポイントを計算
+# ポイントを計算
+def calc_point(frames)
   point = 0
   frames.each.with_index do |frame, i|
-    # 10フレーム目は、フレームの単なる合計
-    if i == 9
-      point += frame.sum
-    else
+    # フレームの合計を加算
+    point += frame.sum
+    # １〜９フレームでスペアかストライク
+    if frame.sum == 10 && i < 9
+      # 次のフレームの１投目を加算
+      point += frames[i + 1][0]
       # ストライク
       if frame[0] == 10
-        # 次のフレームの１投目を加算
-        point += 10 + frames[i + 1][0]
-        # 次のフレームの１投目がストライクで、現在７フレーム以下
-        if frames[i + 1][0] == 10 && i < 8
-          # 次の次のフレームの１投目を加算
-          point += frames[i + 2][0]
-        else
-          # 次のフレームの２投目を加算
-          point += frames[i + 1][1]
-        end
-      # スペア
-      elsif frame.sum == 10
-        # 次のフレームの１投目を加算
-        point += 10 + frames[i + 1][0]
-      else
-        # フレームの単なる合計
-        point += frame.sum
+        # １〜８フレームで次のフレームもストライク
+        point = if frames[i + 1][0] == 10 && i < 8
+                  # 次の次のフレームの１投目を加算
+                  point + frames[i + 2][0]
+                else
+                  # 次のフレームの２投目を加算
+                  point + frames[i + 1][1]
+                end
       end
     end
   end
-
   point
+end
+
+def bowling(score)
+  # スコア文字列を1投ずつに分割
+  scores = score.chars
+  # 一投ずつのスコア文字列を数字配列に変換
+  shots = to_shots(scores)
+  # 数字配列をフレーム毎に分割
+  frames = to_frames(shots)
+  # ポイントを計算
+  calc_point(frames)
 end
 
 # 引数として与えられた文字列で計算する
