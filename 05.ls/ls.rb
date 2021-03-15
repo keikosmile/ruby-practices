@@ -4,6 +4,7 @@
 # frozen_string_literal: true
 
 require 'optparse'
+require 'io/console/size'
 require_relative 'long_format_file'
 
 class Ls
@@ -15,6 +16,8 @@ class Ls
     @wildcard_file_array = []
     @directory_array = []
     @answer_string = ""
+    @console_width = IO.console_size.last
+    @tabsize = 8
   end
 
   def argv_parse(argv_array)
@@ -55,8 +58,6 @@ class Ls
         end
       end
     end
-    #p "directory_array = #{@directory_array}"
-    #p "wildcard_file_array = #{@wildcard_file_array}"
   end
 
   def ls
@@ -65,7 +66,7 @@ class Ls
     # マッチしないワイルドカードがあれば、それを表示し終了
     unless @not_match_wildcard_array.empty?
       @answer_string = "zsh: no matches found: #{@not_match_wildcard_array[0]}\n"
-      p @answer_string
+      #p @answer_string
       print @answer_string
       return @answer_string
     end
@@ -85,9 +86,11 @@ class Ls
       @wildcard_file_array.flatten!
       # オプションを適用する
       file_array = apply_options(@wildcard_file_array, "")
-      #p "file_array #{file_array}"
-      # 提出時にjoinを\tにして横並びにする
-      @answer_string += file_array.join("\n") + "\n"
+      if @option_hash[:l]
+        @answer_string += file_array.join("\n") + "\n"
+      else
+        get_answer_string(file_array)
+      end
     end
 
     # ディレクトリ名配列があれば、それらを表示
@@ -108,20 +111,80 @@ class Ls
         end
         # ディレクトリ内のディレクトリかファイルを配列で得る
         directory_file_array = get_directory_file_array(dir)
-        #p "directory_file_array #{directory_file_array}"
         # ディレクトリかファイルの配列にオプションを適用する
         directory_file_array = apply_options(directory_file_array, dir)
-        # 提出時にjoinを\tにして横並びにする
-        @answer_string += directory_file_array.join("\n") + "\n"
+        if @option_hash[:l]
+          @answer_string += directory_file_array.join("\n") + "\n"
+        else
+          get_answer_string(directory_file_array)
+        end
         if @directory_array.size - 1 != idx
           @answer_string += "\n"
         end
       end
+
     end
 
-    p @answer_string
+    #p @answer_string
     print @answer_string
     @answer_string
+  end
+
+  # ASCII文字を1文字、非ASCII文字（マルチバイト文字）を2文字としてカウントし、文字列の長さを返す
+  def ascii_width(string)
+    string.length + string.chars.reject(&:ascii_only?).length
+  end
+
+  # 表示用の文字列を得る
+  def get_answer_string(directory_file_array)
+    # 最長要素の長さ + \t = １列の長さ
+    max_directory_file = 0
+    directory_file_array.each do |directory_file|
+      tab_times = ascii_width(directory_file) / @tabsize
+      directory_file_tab_length = @tabsize * (tab_times + 1)
+      max_directory_file = ( (directory_file_tab_length > max_directory_file) ? directory_file_tab_length : max_directory_file)
+    end
+
+    # @console_width / １列の長さ = 列数
+    columns = @console_width / max_directory_file
+    columns = (directory_file_array.count < columns ? directory_file_array.count : columns)
+
+    # 要素数 / 列数 = 行数 (余がでたら繰り上がる)
+    rows = directory_file_array.count / columns
+    modulo = directory_file_array.count % columns
+    rows += (modulo == 0 ? 0 : 1)
+
+    # 最小限の行数になった上で、改めて列数を計算
+    columns = directory_file_array.count / rows
+
+    directory_file_array.each do |directory_file|
+      remainder = max_directory_file - ascii_width(directory_file)
+      tab_times = remainder / @tabsize
+      tab_remainder = remainder % @tabsize
+      if tab_remainder != 0
+        tab_times += 1
+      end
+      tmp = directory_file + "\t" * tab_times
+      directory_file.replace(tmp)
+    end
+
+    r = 0
+    while r < rows
+      answer_array = []
+      c = 0
+      while c <= columns
+        directory_file = directory_file_array[r + rows * c]
+        unless directory_file.nil?
+          answer_array.push(directory_file)
+        end
+        c += 1
+      end
+      # 最後にpushした要素の\t\t..を\nに変換する
+      last = answer_array.last.delete!("\t")
+      answer_array.last.replace(last + "\n")
+      @answer_string += answer_array.join
+      r += 1
+    end
   end
 
   # ディレクトリ内のディレクトリかファイルを配列で得る
@@ -138,11 +201,9 @@ class Ls
     # . ./ .. .xx ./.xx ../.xx ../../../.xx などを除かずに残す
     unless @option_hash[:a]
       directory_file_array.delete_if do |f|
-        #p File.basename(f, ".*")
         f.eql?(".") || f.eql?("./") || f.eql?("..") || File.basename(f).start_with?(".")
       end
     end
-    #p "directory_file_array = #{directory_file_array}"
 
     directory_file_array.sort!
     if @option_hash[:r]
@@ -182,7 +243,6 @@ class Ls
         file.replace(long_format_file_array[idx].get_string)
       end
     end
-    #p "directory_file_array = #{directory_file_array}"
     directory_file_array
   end
 end
