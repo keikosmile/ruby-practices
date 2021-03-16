@@ -8,54 +8,68 @@ require 'io/console/size'
 require_relative 'long_format_file'
 
 class Ls
-  def initialize
+  def initialize(argv_array)
+    # オプションをハッシュに格納し、残りのコマンドライン引数を配列に格納する
     @option_hash = { a: false, l: false, r: false }
-    @wildcard_file_directory_array = []
+    @wildcard_file_directory_array = argv_parse(argv_array)
+
     @not_match_wildcard_array = []
     @not_match_file_array = []
     @wildcard_file_array = []
     @directory_array = []
+    # オプション以外のコマンドライン引数は空か
+    if @wildcard_file_directory_array.empty?
+      @directory_array.push('./')
+    # オプション以外のコマンドライン引数を、ディレクトリ・ワイルドカード・ファイルの配列に分ける
+    else
+      separate_wildcard_file_directory_array
+    end
+
     @answer_string = ''
     @console_width = IO.console_size.last
     @tabsize = 8
   end
 
+  # オプションをハッシュに格納し、残りのコマンドライン引数を配列で返す
   def argv_parse(argv_array)
+    # OptionParserオブジェクトoptを生成する
     opt = OptionParser.new
+    # オプションを取り扱うブロックをoptに登録する
     opt.on('-a') { |v| v }
     opt.on('-l') { |v| v }
     opt.on('-r') { |v| v }
+    # オプションをハッシュに格納し、残りのコマンドライン引数を配列で返す
     opt.order!(argv_array, into: @option_hash)
-    @wildcard_file_directory_array = argv_array
+  end
+
+  # ワイルドカードをマッチする配列とマッチしない配列に分ける
+  def separate_wildcard_array(wildcard_string)
+    file_array = Dir.glob(wildcard_string)
+    # ワイルドカードがマッチしないなら
+    if file_array.empty?
+      @not_match_wildcard_array.push(wildcard_string)
+    # ワイルドカードがマッチするなら
+    else
+      @wildcard_file_array.push(file_array)
+    end
   end
 
   # オプション以外のコマンドライン引数を、ディレクトリ・ワイルドカード・ファイルの配列に分ける
   def separate_wildcard_file_directory_array
-    # オプション以外の配列は空か
-    if @wildcard_file_directory_array.empty?
-      @directory_array.push('./')
-    else
-      @wildcard_file_directory_array.each do |i|
-        # ディレクトリなら
-        if FileTest.directory?(i)
-          @directory_array.push(i)
-        # ワイルドカードなら
-        elsif i.include?('*') || i.include?('?') || (i.include?('[') && i.include?(']')) || (i.include?('{') && i.include?('}')) || i.include?('**/')
-          file_array = Dir.glob(i)
-          # ワイルドカードがマッチしないなら
-          if file_array.empty?
-            @not_match_wildcard_array.push(i)
-          # ワイルドカードがマッチするなら
-          else
-            @wildcard_file_array.push(file_array)
-          end
-        # ファイルなら
-        elsif FileTest.exist?(i)
-          @wildcard_file_array.push(i)
-        # 存在しないファイルかディレクトリなら
-        else
-          @not_match_file_array.push(i)
-        end
+    @wildcard_file_directory_array.each do |i|
+      # ディレクトリなら
+      if FileTest.directory?(i)
+        @directory_array.push(i)
+      # ワイルドカードなら
+      elsif i.include?('*') || i.include?('?') || (i.include?('[') && i.include?(']')) || (i.include?('{') && i.include?('}')) || i.include?('**/')
+        # ワイルドカードをマッチする配列とマッチしない配列に分ける
+        separate_wildcard_array(i)
+      # ファイルなら
+      elsif FileTest.exist?(i)
+        @wildcard_file_array.push(i)
+      # 存在しないファイルかディレクトリなら
+      else
+        @not_match_file_array.push(i)
       end
     end
   end
@@ -89,7 +103,6 @@ class Ls
         max_size = (long.size.length > max_size ? long.size.length : max_size)
         total += long.blocks
       end
-
       @answer_string += "total #{total}\n" unless dir.empty?
 
       # 最高幅に合わせて、右寄せ・左寄せする
@@ -168,9 +181,6 @@ class Ls
   end
 
   def ls
-    # オプション以外のコマンドライン引数を、ワイルドカード・ファイル・ディレクトリの配列に分ける
-    separate_wildcard_file_directory_array
-
     # マッチしないワイルドカードがあれば、それを表示し終了
     unless @not_match_wildcard_array.empty?
       @answer_string = "zsh: no matches found: #{@not_match_wildcard_array[0]}\n"
@@ -231,7 +241,6 @@ class Ls
 end
 
 if __FILE__ == $PROGRAM_NAME
-  ls = Ls.new
-  ls.argv_parse(ARGV)
+  ls = Ls.new(ARGV)
   ls.ls
 end
