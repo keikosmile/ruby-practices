@@ -7,6 +7,8 @@ class LongFormatFile
   attr_reader :nlink, :username, :groupname, :size, :blocks
 
   def initialize(dir, file)
+    # dirが空白でなく（ディレクトリが指定されている）、"/"で終わっていなければ、"/"を追加する
+    dir = "#{dir}/" unless dir.empty? || dir.end_with?('/')
     fs = File.stat(dir + file)
     # ファイルモードを８進文字列に変換し、文字列を得る
     @mode = get_mode_string(fs.mode.to_s(8))
@@ -83,7 +85,7 @@ class LongFormatFile
   end
 
   # ロングフォーマットファイル形式の文字列を得る
-  def long_format_file
+  def long_format_file_string
     "#{@mode}  #{@nlink} #{@username}  #{@groupname}  #{@size} #{@mtime} #{@basename}"
   end
 end

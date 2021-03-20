@@ -4,13 +4,13 @@
 # frozen_string_literal: true
 
 require 'optparse'
-require_relative 'wild_dir_file'
+require_relative 'wildcards_directories_files'
 
 class Ls
   def initialize(argv_array)
-    # コマンドライン引数を、インスタンス変数に格納する
     @option_hash = { a: false, l: false, r: false }
-    @wild_dir_file = WildDirFile.new(argv_parse(argv_array), @option_hash)
+    # コマンドライン引数を、オプションのハッシュとワイルドカード・ディレクトリ・ファイルクラスインスタンスに分けて格納する
+    @wildcards_directories_files = WildcardsDirectoriesFiles.new(argv_parse(argv_array), @option_hash)
   end
 
   # コマンドライン引数を受け取り、オプションはハッシュに格納し、残りは配列で返す
@@ -26,34 +26,19 @@ class Ls
   end
 
   def ls
-    # マッチしないワイルドカード配列はあるか？
-    if @wild_dir_file.not_match_wildcard_array_exist?
-      # マッチしないワイルドカードに対する答えの文字列を設定する
-      @wild_dir_file.set_answer_not_match_wildcard
-      # 答えの文字列を表示し終了
-      return @wild_dir_file.show_answer_string
+    # ワイルドカード・ディレクトリ・ファイルクラスインスタンスのうち、マッチしないワイルドカード配列に対する処理をする
+    answer_string = @wildcards_directories_files.not_matched_wildcards_exec
+    # 答えの文字列があれば、表示して終了
+    unless answer_string.empty?
+      print answer_string
+      return answer_string
     end
 
-    # マッチしないディレクトリかファイル配列はあるか？
-    if @wild_dir_file.not_match_directory_file_array_exist?
-      # マッチしないディレクトリかファイルに対する答えの文字列を設定する
-      @wild_dir_file.set_answer_not_match_directory_file
-    end
-
-    # マッチするファイル配列はあるか？
-    if @wild_dir_file.file_array_exist?
-      # マッチするファイルに対する答えの文字列を設定する
-      @wild_dir_file.set_answer_file
-    end
-
-    # マッチするディレクトリ配列はあるか？
-    if @wild_dir_file.directory_array_exist?
-      # マッチするディレクトリに対する答えの文字列を設定する
-      @wild_dir_file.set_answer_directory
-    end
-
+    # ワイルドカード・ディレクトリ・ファイルクラスインスタンスのうち、マッチしないディレクトリ・ファイル配列、マッチするファイル配列、マッチするディレクトリ配列、に対する処理をする
+    answer_string = @wildcards_directories_files.directories_files_exec
     # 答えの文字列を表示し返す
-    @wild_dir_file.show_answer_string
+    print answer_string
+    answer_string
   end
 end
 
