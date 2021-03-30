@@ -74,16 +74,21 @@ module DirectoriesFilesMethods
     [total_blocks_boolean, total_blocks]
   end
 
-  # ASCII文字を1文字、非ASCII文字（マルチバイト文字）を2文字としてカウントし、文字列の長さを返す
-  def ascii_width(string)
+  # ASCII文字を1文字、非ASCII文字（マルチバイト文字）を2文字としてカウントし、文字列の長さを返す（表示用）
+  def ascii_length_x2(string)
     string.length + string.chars.count { |c| !c.ascii_only? }
+  end
+
+  # ASCII文字を1文字、非ASCII文字（マルチバイト文字）を3文字としてカウントし、文字列の長さを返す（実際の計算用）
+  def ascii_length_x3(string)
+    string.length + (string.chars.count { |c| !c.ascii_only? } * 2)
   end
 
   # ディレクトリ・ファイル配列の各要素にタブを必要数挿入する
   def add_tabs(directories_files_array, max_directory_file_1tab_length, tabsize)
     directories_files_array.map! do |directory_file|
       # 最長の文字列の長さ - 各要素の文字列の長さ から、残りの文字数を得る
-      remainder = max_directory_file_1tab_length - ascii_width(directory_file)
+      remainder = max_directory_file_1tab_length - ascii_length_x2(directory_file)
       # 残りの文字数のタブの個数を得る
       tab_times = remainder / tabsize
       # 残りの文字数から、タブで割り切れずさらに残った文字数を得る
@@ -105,14 +110,15 @@ module DirectoriesFilesMethods
     # ディレクトリ・ファイル配列のなかで、最長の文字列の長さを得る
     max_directory_file_1tab_length = 0
     directories_files_array.each do |directory_file|
-      # ディレクトリ・ファイル名から、ASCII文字を1文字、非ASCII文字（マルチバイト文字）を2文字としてカウントした文字列の長さを得て、その中で使われているタブの個数を得る
-      tab_times = ascii_width(directory_file) / tabsize
+      # ディレクトリ・ファイル名から、ASCII文字を1文字、非ASCII文字（マルチバイト文字）を3文字としてカウントした文字列の長さを得て、その中で使われているタブの個数を得る
+      tab_times = ascii_length_x3(directory_file) / tabsize
       # ディレクトリ・ファイル名 + 1tabとした時の、文字列の長さを得る
       directory_file_1tab_length = tabsize * (tab_times + 1)
       # ディレクトリ・ファイル配列のなかで、最長の文字列の長さを得る
       max_directory_file_1tab_length = directory_file_1tab_length > max_directory_file_1tab_length ? directory_file_1tab_length : max_directory_file_1tab_length
     end
 
+    # 最長の文字列の長さによって、tab_timesを増やす
     # コンソール幅 / 最長の文字列の長さ から、 列数を得る
     columns = console_width / max_directory_file_1tab_length
     # ディレクトリ・ファイル配列の要素数が列数より少なければ、要素数を列数とする
