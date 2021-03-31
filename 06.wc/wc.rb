@@ -8,7 +8,7 @@ require 'optparse'
 class Wc
   def initialize(argv_array)
     # ファイルの行数、単語数、バイト数を標準出力に表示する
-    @option_hash = { c: true, m: false, l: true, w: true }
+    @option_hash = { l: false, w: false, c: false }
     @files = argv_parse(argv_array)
     @buf = ""
   end
@@ -18,15 +18,18 @@ class Wc
     # OptionParseオブジェクトoptを生成する
     opt = OptionParser.new
     # オプションを取り扱うブロックをoptに登録する
-    opt.on('-c') { |v| v }
-    opt.on('-m') { |v| v }
     opt.on('-l') { |v| v }
     opt.on('-w') { |v| v }
+    opt.on('-c') { |v| v }
     # オプションをハッシュに格納し、残りのコマンドライン引数を配列で返す
     opt.order!(argv_array, into: @option_hash)
   end
 
   def wc
+    # オプションが指定されていない場合、デフォルト
+    if !@option_hash[:l] && !@option_hash[:w] && !@option_hash[:c]
+      @option_hash = { l: true, w: true, c: true }
+    end
     # ファイルを開いて読み込み、オプションを適用し文字列を得る
     answer_string = file_io
     # 答えの文字列を表示し返す
@@ -48,21 +51,35 @@ class Wc
       "wc: #{@files[0]}: read: Is a directory\n"
     else
       # オプションを適用し、文字列を返す
-      "#{apply_options} #{@files[0]}\n"
+      "#{apply_l_option}#{apply_w_option}#{apply_c_option} #{@files[0]}\n"
     end
-  end
-
-  # オプションを適用する
-  def apply_options
-    # 改行文字を数え、answer_stringに設定する
-    apply_l_option if @option_hash[:l]
   end
 
   # l オプションを適用し、1文字のスペースと７桁の数字で返す
   def apply_l_option
-    # 行数を数える
-    n_lines = @buf.count("\n")
-    n_lines.to_s.rjust(8)
+    if @option_hash[:l]
+      # 行数を数える
+      n_lines = @buf.count("\n")
+      n_lines.to_s.rjust(8)
+    end
+  end
+
+  # w オプションを適用し、1文字のスペースと７桁の数字で返す
+  def apply_w_option
+    if @option_hash[:w]
+      # 単語数を数える
+      n_word = @buf.split.count
+      n_word.to_s.rjust(8)
+    end
+  end
+
+  # c オプションを適用し、1文字のスペースと７桁の数字で返す
+  def apply_c_option
+    if @option_hash[:c]
+      # バイト数を数える
+      n_bytesize = @buf.bytesize
+      n_bytesize.to_s.rjust(8)
+    end
   end
 end
 
