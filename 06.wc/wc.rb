@@ -1,8 +1,7 @@
 #!/usr/bin/env ruby
 
 # 文字列をimmutable（破壊的変更不可）にする
-#frozen_string_literal: true
-
+#frozen_string_literal: true1
 require 'optparse'
 
 class Wc
@@ -19,11 +18,16 @@ class Wc
     # 無効なオプションが指定されていなければ
     if @answer_string.empty?
       total = 0
-      # ファイルごとに
-      @files.each do |file|
-        # ファイルを開いて読み込み、オプションを適用し答えの文字列を得る
-        @answer_string += " #{file}\n" if count_file(file)
-        total += 1
+
+      if @files.empty?
+        @answer_string += "\n" if count_file(nil)
+      else
+        # ファイルごとに
+        @files.each do |file|
+          # ファイルを開いて読み込み、オプションを適用し答えの文字列を得る
+          @answer_string += " #{file}\n" if count_file(file)
+          total += 1
+        end
       end
       if total > 1
         @answer_string += @total_hash[:l].to_s.rjust(8) if @option_hash[:l]
@@ -49,7 +53,7 @@ class Wc
     opt.on('-m') { |v| @option_hash[:m] = true, @option_hash[:c] = false }
     # 残りのコマンドライン引数を配列に入れる
     begin
-      @files = opt.parse(argv_array)
+      @files = opt.order(argv_array)
       # オプションが指定されていない場合、デフォルトで行数、単語数、バイト数を表示する
       if @option_hash == { l: false, w: false, c: false, m: false }
         @option_hash = { l: true, w: true, c: true }
@@ -63,27 +67,33 @@ class Wc
   # ファイルを開いて読み込み、オプションを適用し閉じる
   def count_file(file)
     buf = ""
-    begin
-      File.open(file, "r") do |f|
-        # EOFまでの全てのデータを読み込み、その文字列を返す
-        buf = f.read
-      end
-    # 例外処理
-    rescue Errno::ENOENT
-      @answer_string += "wc: #{file}: open: No such file or directory\n"
-      return false
-    rescue Errno::EISDIR
-      @answer_string += "wc: #{file}: read: Is a directory\n"
-      return false
-    # 正常にファイルを開ければ
+
+    if file.nil?
+      # 標準入力から、EOF(Ctrl＋Dが押される)まで文字列を読み込む
+      buf = $stdin.read
     else
-      # オプションを適用し、文字列を得る
-      apply_l_option(buf) if @option_hash[:l]
-      apply_w_option(buf) if @option_hash[:w]
-      apply_c_option(buf) if @option_hash[:c]
-      apply_m_option(buf) if @option_hash[:m]
-      return true
+      begin
+        # ファイルを読み込みモードで開く
+        File.open(file, "r") do |f|
+          # EOFまでの全てのデータを読み込み、文字列を得る
+          buf = f.read
+        end
+      # 例外処理
+      rescue Errno::ENOENT
+        @answer_string += "wc: #{file}: open: No such file or directory\n"
+        return false
+      rescue Errno::EISDIR
+        @answer_string += "wc: #{file}: read: Is a directory\n"
+        return false
+      end
     end
+
+    # オプションを適用し、文字列を得る
+    apply_l_option(buf) if @option_hash[:l]
+    apply_w_option(buf) if @option_hash[:w]
+    apply_c_option(buf) if @option_hash[:c]
+    apply_m_option(buf) if @option_hash[:m]
+    return true
   end
 
   # l オプションを適用し、1文字のスペースと７桁の数字からなる文字列を得る
@@ -96,17 +106,43 @@ class Wc
 
   # w オプションを適用し、1文字のスペースと７桁の数字からなる文字列を得る
   def apply_w_option(buf)
-    # 単語数を数える（@bufが不正なバイト列を含む場合?に置き換える）
-    # 空白文字（半角スペース、タブ、改行文字）で区切る
-    #@buf.bytes
-    n_word = buf.scrub.split.count
+    # 文字列がascii文字だけの場合
+    if buf.ascii_only?
+      n_word = buf.split.count
+    else
+      # 空白文字
+      # 空白    ' ' : 0x20
+      # 改頁    \f  : 0x0C
+      # 改行    \n  : 0xA
+      # 復帰    \r  : 0x0D
+      # 水平タブ \t  : 0x09
+      # 垂直タブ \v  : 0x0B
+      # ノーブレークスペース  : 0x85
+      wspace_array = ["20", "0C", "A", "0D", "09", "0B", "85"]
+
+      # 文字列をUTF-8で符号化しバイト単位に分割、16進数表記に変換する
+      buf_array = buf.bytes.map { |b|
+        b.to_s(16).upcase
+      }
+      # 空白文字で区切られた単語数を数える
+      word_flag = 1
+      n_word = 0
+      buf_array.each { |b|
+        if wspace_array.include?(b)
+          word_flag = 1;
+        elsif word_flag == 1
+          word_flag = 0;
+          n_word += 1
+        end
+      }
+    end
     @answer_string += n_word.to_s.rjust(8)
     @total_hash[:w] += n_word
   end
 
   # c オプションを適用し、1文字のスペースと７桁の数字からなる文字列を得る
   def apply_c_option(buf)
-    # バイト数を数える
+    # バイト数を数える（文字列のバイト長を整数で返す）
     n_bytesize = buf.bytesize
     @answer_string += n_bytesize.to_s.rjust(8)
     @total_hash[:c] += n_bytesize
@@ -114,14 +150,16 @@ class Wc
 
   # m オプションを適用し、1文字のスペースと７桁の数字からなる文字列を得る
   def apply_m_option(buf)
-    # 文字数を数える（マルチバイト文字1文字も1文字として返す）
+    # 文字数を数える（マルチバイト文字1文字を1文字と数える）
     n_size = buf.size
     @answer_string += n_size.to_s.rjust(8)
     @total_hash[:m] += n_size
   end
 end
 
+# スクリプトをシェルから実行した時のみに評価される
 if __FILE__ == $PROGRAM_NAME
+  # メインルーチン
   wc = Wc.new
   wc.wc(ARGV)
 end
