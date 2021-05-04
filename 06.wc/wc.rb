@@ -6,27 +6,34 @@
 require 'optparse'
 require_relative 'option'
 
+# WCコマンドを再現するクラス
 class Wc
+  # Wcオブジェクトの作成
   def initialize
     @option = Option.new
     @files = []
     @answer_string = ''
   end
 
-  def wc(argv_array)
+  # メインメソッド
+  # ==== 引数
+  # * +argv_array+ ARGVの配列
+  # ==== 戻り値
+  # * +answer_string+ 答えの文字列
+  def main(argv_array)
     # コマンドライン引数をオプションとファイル配列にパースする。無効なオプションが指定されていなければ
     if argv_parse(argv_array)
       total = 0
 
       # コマンドライン引数にファイル名がない場合
       if @files.empty?
-        # 標準入力かパイプから読み込み、オプションを適用し答えの文字列を得る
+        # 標準入力かパイプから読み込み、オプションを適用し答えの文字列を得て、最後に改行する
         @answer_string += "\n" if count_file(nil)
       # コマンドライン引数にファイル名がある場合
       else
         # ファイルごとに
         @files.each do |file|
-          # ファイルを開いて読み込み、オプションを適用し答えの文字列を得る
+          # 各ファイルを開いて読み込み、オプションを適用し答えの文字列を得て、最後にファイル名を付け改行する
           @answer_string += " #{file}\n" if count_file(file)
           total += 1
         end
@@ -39,20 +46,24 @@ class Wc
     @answer_string
   end
 
-  # コマンドライン引数を受け取り、オプションはハッシュに格納し、残りは配列に入れ空文字列を返す
+  # コマンドライン引数をパースするメソッド
+  # ==== 引数
+  # * +argv_array+ ARGVの配列
+  # ==== 戻り値
+  # * +boolean+ 無効なオプションが指定されていれば+false+、指定されていなければ+true+
   def argv_parse(argv_array)
     # OptionParseオブジェクトoptを生成する
     opt = OptionParser.new
-    # オプションを取り扱うブロックをoptに登録し、ハッシュに格納する
+    # オプションを取り扱うブロックをoptに登録し、オプションインスタンスを介しハッシュに格納する
     opt.on('-l') { @option.option_hash[:l] = true }
     opt.on('-w') { @option.option_hash[:w] = true }
     opt.on('-c') { @option.option_hash[:c] = true, @option.option_hash[:m] = false }
     opt.on('-m') { @option.option_hash[:m] = true, @option.option_hash[:c] = false }
-    # 残りのコマンドライン引数を配列に入れる
     begin
+      # 残りのコマンドライン引数を配列に入れる
       @files = opt.order(argv_array)
-      # オプションが指定されていない場合、デフォルトで行数、単語数、バイト数を表示する
-      @option.option_hash = { l: true, w: true, c: true } if @option.option_hash == { l: false, w: false, c: false, m: false }
+      # オプションが指定されていない場合、デフォルトで行数、単語数、バイト数を表示するようオプションインスタンスを介して設定する
+      @option.set_option_default
     # 無効なオプションが指定されていた場合
     rescue OptionParser::ParseError => e
       @answer_string += "wc: illegal option -- #{e.args[0][1]}\nusage: wc [-clmw] [file ...]\n"
@@ -61,7 +72,11 @@ class Wc
     true
   end
 
-  # ファイルを開いて読み込み、オプションを適用し閉じる
+  # 標準入力か各ファイルを開いて読み込み、オプションを適用し答えの文字列を設定するメソッド
+  # ==== 引数
+  # * +file+ ファイル名
+  # ==== 戻り値
+  # * +boolean+ ファイルを読み込めなければ+false+、標準入力かファイルを読み込めれば+true+
   def count_file(file)
     buf = ''
 
@@ -85,10 +100,9 @@ class Wc
       end
     end
 
-    # オプションを適用し、文字列を得る
+    # 各オプションを適用し、得られた文字列を答えの文字列に加える
     @answer_string += @option.apply_option(buf)
     true
-    # apply_option(buf)
   end
 end
 
@@ -96,5 +110,5 @@ end
 if __FILE__ == $PROGRAM_NAME
   # メインルーチン
   wc = Wc.new
-  wc.wc(ARGV)
+  wc.main(ARGV)
 end
