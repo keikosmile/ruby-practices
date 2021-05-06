@@ -27,14 +27,14 @@ class Wc
 
       # コマンドライン引数にファイル名がない場合
       if @files.empty?
-        # 標準入力かパイプから読み込み、オプションを適用し答えの文字列を得て、最後に改行する
-        @answer_string += "\n" if count_file(nil)
+        # 標準入力かパイプから読み込み、オプションを適用し答えの文字列を得る
+        count_stdin
       # コマンドライン引数にファイル名がある場合
       else
         # ファイルごとに
         @files.each do |file|
-          # 各ファイルを開いて読み込み、オプションを適用し答えの文字列を得て、最後にファイル名を付け改行する
-          @answer_string += " #{file}\n" if count_file(file)
+          # 各ファイルを開いて読み込み、オプションを適用し答えの文字列を得る
+          count_file(file)
           total += 1
         end
       end
@@ -72,37 +72,40 @@ class Wc
     true
   end
 
-  # 標準入力か各ファイルを開いて読み込み、オプションを適用し答えの文字列を設定するメソッド
-  # ==== 引数
-  # * +file+ ファイル名
-  # ==== 戻り値
-  # * +boolean+ ファイルを読み込めなければ+false+、標準入力かファイルを読み込めれば+true+
-  def count_file(file)
-    buf = ''
-
-    if file.nil?
-      # 標準入力から、EOF(Ctrl＋Dが押される)まで文字列を読み込む
-      buf = $stdin.read
-    else
-      begin
-        # ファイルを読み込みモードで開く
-        File.open(file, 'r') do |f|
-          # EOFまでの全てのデータを読み込み、文字列を得る
-          buf = f.read
-        end
-      # 例外処理
-      rescue Errno::ENOENT
-        @answer_string += "wc: #{file}: open: No such file or directory\n"
-        return false
-      rescue Errno::EISDIR
-        @answer_string += "wc: #{file}: read: Is a directory\n"
-        return false
-      end
-    end
+  # 標準入力を読み込み、オプションを適用し答えの文字列を設定するメソッド
+  def count_stdin
+    # 標準入力から、EOF(Ctrl＋Dが押される)まで文字列を読み込む
+    buf = $stdin.read
 
     # 各オプションを適用し、得られた文字列を答えの文字列に加える
     @answer_string += @option.apply_option(buf)
-    true
+    # 最後に改行する
+    @answer_string += "\n"
+  end
+
+  # 各ファイルを開いて読み込み、オプションを適用し答えの文字列を設定するメソッド
+  # ==== 引数
+  # * +file+ ファイル名
+  def count_file(file)
+    buf = ''
+
+    begin
+      # ファイルを読み込みモードで開く
+      File.open(file, 'r') do |f|
+        # EOFまでの全てのデータを読み込み、文字列を得る
+        buf = f.read
+      end
+    # 例外処理
+    rescue Errno::ENOENT
+      @answer_string += "wc: #{file}: open: No such file or directory\n"
+    rescue Errno::EISDIR
+      @answer_string += "wc: #{file}: read: Is a directory\n"
+    else
+      # 各オプションを適用し、得られた文字列を答えの文字列に加える
+      @answer_string += @option.apply_option(buf)
+      # 最後にファイル名を付け改行する
+      @answer_string += " #{file}\n"
+    end
   end
 end
 
